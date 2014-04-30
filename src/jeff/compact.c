@@ -79,7 +79,7 @@ typedef uint32_t ptr_t;
 #endif
 
 
-rmalloc_meta_t *g_state = NULL;
+static rmalloc_meta_t *g_state = NULL;
 
 
 
@@ -1594,6 +1594,14 @@ void rminit(void *heap, uint32_t size) {
     g_state->highest_address_header = g_state->header_top; // to make sure it points to _something_
 
     memset(heap, 0, size);
+}
+
+rmalloc_meta_t* rmalloc_get_state(void) {
+    return g_state;
+}
+
+void rmalloc_set_state(rmalloc_meta_t *state) {
+    g_state = state;
 }
 
 void rmdestroy() {

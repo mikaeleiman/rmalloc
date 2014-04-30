@@ -9,6 +9,8 @@
 #define KB(x) 1024*x
 const int heap_size = MB(32); // was 16
 int heap_size_small = MB(1);
+rmalloc_meta_t *g_state;
+
 
 class SmallAllocTest : public ::testing::Test {
 protected:
@@ -20,6 +22,7 @@ protected:
     void SetUp() {
         fprintf(stderr, "* Heap size %d\n", heap_size_small);
         rminit(storage, heap_size_small);
+        g_state = rmalloc_get_state();
         srand(time(NULL));
     }
     void TearDown() {
@@ -39,6 +42,7 @@ protected:
     void SetUp() {
         fprintf(stderr, "* Heap size %d\n", heap_size);
         rminit(storage, heap_size);
+        g_state = rmalloc_get_state();
         srand(time(NULL));
     }
     void TearDown() {

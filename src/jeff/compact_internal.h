@@ -49,8 +49,6 @@ typedef struct free_memory_block_t {
 extern "C" {
 #endif // __cplusplus
 
-typedef struct rmalloc_meta_t rmalloc_meta_t;
-
 struct rmalloc_meta_t {
     /* memory layout
      */
@@ -84,26 +82,6 @@ struct rmalloc_meta_t {
     #endif
 };
 
-extern rmalloc_meta_t *g_state;
-/*
-extern void *g_memory_bottom;
-extern void *g_memory_top;
-extern uint32_t g_memory_size;
-extern free_memory_block_t **g_free_block_slots;
-extern short g_free_block_slot_count; // log2(heap_size)
-extern int g_free_block_hits;
-extern uint32_t g_free_block_alloc;
-extern uint32_t g_memlayout_sequence;
-extern header_t *g_header_top;
-extern header_t *g_header_bottom;
-extern header_t *g_header_root; // linked list
-extern int g_header_used_count; // for spare headers in compact
-extern header_t *g_last_free_header;
-extern header_t *g_unused_header_root;
-extern header_t *g_highest_address_header;
-//extern static bool g_debugging = false;
-*/
-
 uint32_t log2_(uint32_t n);
 typedef ptr_t (*compare_cb)(void *a, void *b);
 header_t *header__sort(header_t *list,  int is_circular, int is_double, compare_cb cmp);
@@ -115,6 +93,7 @@ void header_sort_all();
 bool header_is_unused(header_t *header);
 void freeblock_print();
 bool freeblock_exists_memory(void *ptr);
+
 
 #ifdef __cplusplus
 }

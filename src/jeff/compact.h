@@ -45,6 +45,8 @@ extern "C" {
 #include <stdbool.h>
 #endif
 
+typedef struct rmalloc_meta_t rmalloc_meta_t;
+
 void rminit(void *heap, uint32_t size);
 void rmdestroy();
 
@@ -55,18 +57,10 @@ void *rmweaklock(handle_t);
 void rmunlock(handle_t);
 void rmcompact(uint32_t maxtime);
 
+rmalloc_meta_t* rmalloc_get_state(void);
+void rmalloc_set_state(rmalloc_meta_t *state);
+
 /* internal */
-
-/*
-header_t *header_find_free();
-header_t *header_new();
-void header_free(header_t *h);
-header_t *header_set_unused(header_t *header);
-
-free_memory_block_t *block_from_header(header_t *header);
-header_t *block_new(int size);
-header_t *block_free(header_t *header);
-*/
 
 uint32_t rmstat_total_free_list();
 uint32_t rmstat_largest_free_block();
