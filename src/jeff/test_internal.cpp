@@ -62,11 +62,11 @@ TEST_F(AllocTest, Init) {
 
 
 TEST_F(AllocTest, HeaderFindFree) {
-    header_t *h = header_find_free(false);
+    header_t *h = header_find_free();
     h->flags = HEADER_UNLOCKED;
     h->memory = (void *)1;
     ASSERT_TRUE(h != NULL);
-    h = header_find_free(false);
+    h = header_find_free();
     ASSERT_TRUE(h == NULL);
 
     ASSERT_EQ(g_header_bottom, g_header_top);

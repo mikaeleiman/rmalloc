@@ -69,7 +69,7 @@ uint32_t log2_(uint32_t n);
 typedef ptr_t (*compare_cb)(void *a, void *b);
 header_t *header__sort(header_t *list,  int is_circular, int is_double, compare_cb cmp);
 ptr_t header__cmp(void *a, void *b);
-header_t *header_find_free(bool spare_two_for_compact);
+header_t *header_find_free(void);
 uint32_t rmstat_total_free_list(void);
 free_memory_block_t *block_from_header(header_t *header);
 void header_sort_all();
