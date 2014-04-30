@@ -16,6 +16,14 @@ profile: PROFILING=-pg -g3
 SOURCES=listsort.c compact.c
 CFLAGS=
 
+build :
+	mkdir -p build
+
+
+tests :
+	mkdir -p tests
+
+
 # We need to download the zip first
 build/gtest.zip : | build
 	curl -o build/gtest.zip -L http://googletest.googlecode.com/files/gtest-1.7.0.zip
@@ -45,10 +53,10 @@ GTEST_HEADERS = $(GTEST_DIR)/include/gtest/*.h \
 GTEST_SRCS_ = $(GTEST_DIR)/src/*.cc $(GTEST_DIR)/src/*.h $(GTEST_HEADERS)
 
 # Build gtest binaries
-build/gtest-all.o : $(GTEST_DIR)/src/gtest-all.cc
+build/gtest-all.o : tests/gtest-1.7.0 $(GTEST_DIR)/src/gtest-all.cc
 	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) $(CXXFLAGS) -c $(GTEST_DIR)/src/gtest-all.cc -o build/gtest-all.o
 
-build/gtest_main.o : $(GTEST_DIR)/src/gtest_main.cc
+build/gtest_main.o : tests/gtest-1.7.0 $(GTEST_DIR)/src/gtest_main.cc
 	$(CXX) $(CPPFLAGS) -I$(GTEST_DIR) $(CXXFLAGS) -c $(GTEST_DIR)/src/gtest_main.cc -o build/gtest_main.o
 
 #### end googletest
@@ -57,7 +65,7 @@ build/gtest_main.o : $(GTEST_DIR)/src/gtest_main.cc
 .c.o:
 	gcc $(PROFILING) -c $(CFLAGS) $<
 
-tests: test_*.cpp $(SOURCES)
+tests: test_*.cpp $(SOURCES) build/gtest-all.o build/gtest_main.o
 	gcc -o $(CFLAGS) run_tests test_*.cpp $(SOURCES) -Itests/gtest-1.7.0/include -g -lstdc++ build/gtest_main.o build/gtest-all.o -lpthread
 
 compact: $(SOURCES)
