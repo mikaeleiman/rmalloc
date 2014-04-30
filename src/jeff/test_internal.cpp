@@ -455,7 +455,7 @@ TEST_F(AllocTest, RandomAllormfreeFreeHalf) {
     }
 
     fprintf(stderr, "largest block allocated %d kb, total allocated before death = %u (%d kb) in %d allocs, free block hits = %d (allocated %d kb), total heap size %d kb, %d kb free in free list, %ld bytes free above top\n", largest/1024, allocated, allocated/1024, count,g_state->free_block_hits, g_state->free_block_alloc/1024, heap_size/1024, rmstat_total_free_list()/1024, ((uint8_t*)g_state->header_bottom-(uint8_t*)g_state->memory_top));
-    freeblock_print();
+    //freeblock_print();
 
     header_sort_all();
 

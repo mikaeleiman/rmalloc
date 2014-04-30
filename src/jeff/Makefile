@@ -20,10 +20,6 @@ build :
 	mkdir -p build
 
 
-tests :
-	mkdir -p tests
-
-
 # We need to download the zip first
 build/gtest.zip : | build
 	curl -o build/gtest.zip -L http://googletest.googlecode.com/files/gtest-1.7.0.zip

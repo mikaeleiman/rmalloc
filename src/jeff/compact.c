@@ -4,8 +4,15 @@
 #include "compact_internal.h"
 
 #include <stdlib.h>
-#include <time.h>
 #include <string.h>
+
+
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define WITH_ITER(h, init, body...) {header_t *h = init; while (h != NULL) {body; h = h->next;}}
+
+// These are from listsort.c
+header_t *header__sort(header_t *list,  int is_circular, int is_double, compare_cb cmp);
+ptr_t header__cmp(void *a, void *b);
 
 
 #ifdef __MACH__
@@ -14,7 +21,7 @@
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 
-uint64_t uptime_nanoseconds(void)
+static uint64_t uptime_nanoseconds(void)
 {
     uint64_t start;
     uint64_t timeNano;
@@ -47,14 +54,17 @@ uint64_t uptime_nanoseconds(void)
 
 #include "../../bsp/timers.h"
 
-uint64_t uptime_nanoseconds(void)
+static uint64_t uptime_nanoseconds(void)
 {
     // TODO replace with start/elapsed
     return bsp_timer_start() * 1000;
 }
 
 #else
-uint64_t uptime_nanoseconds(void)
+
+#include <time.h>
+
+static uint64_t uptime_nanoseconds(void)
 {
     struct timespec t;
 
@@ -96,7 +106,8 @@ uint32_t log2_(uint32_t n)
 
 
 
-void assert_handles_valid(header_t *header_root) {
+#ifdef RMALLOC_DEBUG
+static void assert_handles_valid(header_t *header_root) {
 
     (void)header_root;
     // dump_memory_layout();
@@ -176,14 +187,10 @@ void freeblock_verify_lower_size() {
 }
 
 
-
-
-uint8_t header_fillchar(header_t *h) {
+static uint8_t header_fillchar(header_t *h) {
     return (ptr_t)h & 0xFF;
 }
 
-
-#if 0
 
 static bool assert_memory_contents(header_t *h)
 {
@@ -214,13 +221,7 @@ static void assert_blocks() {
     }
 }
 
-#endif
 
-
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define WITH_ITER(h, init, body...) {header_t *h = init; while (h != NULL) {body; h = h->next;}}
-
-#if 0
 void dump_memory_layout() {
 
         header_t *header_root = g_header_root;
@@ -283,10 +284,8 @@ void dump_memory_layout() {
 
         fclose(fp);
 }
-#endif
 
 
-#ifdef RMALLOC_DEBUG
 void freeblock_print() {
     for (int i=0; i<g_free_block_slot_count; i++) {
         fprintf(stderr, "%d / %d bytes / %d kb: ", i, 1<<i, (1<<i)/1024);
@@ -298,7 +297,6 @@ void freeblock_print() {
         fprintf(stderr, "\n");
     }
 }
-#endif
 
 bool freeblock_exists_memory(void *ptr) {
     for (int i=0; i<g_state->free_block_slot_count; i++) {
@@ -313,7 +311,7 @@ bool freeblock_exists_memory(void *ptr) {
     return false;
 }
 
-bool freeblock_exists(free_memory_block_t *block) {
+static bool freeblock_exists(free_memory_block_t *block) {
     for (int i=0; i<g_state->free_block_slot_count; i++) {
         free_memory_block_t *b = g_state->free_block_slots[i];
         while (b) {
@@ -326,7 +324,7 @@ bool freeblock_exists(free_memory_block_t *block) {
     return false;
 }
 
-void assert_memory_is_free(void *ptr) {
+static void assert_memory_is_free(void *ptr) {
     /*
      * assert that there are no non-free blocks in which this pointer address exists.
      *
@@ -347,6 +345,9 @@ void assert_memory_is_free(void *ptr) {
     }
 }
 
+#endif
+
+
 free_memory_block_t *block_from_header(header_t *header) {
     /* free_memory_block_t for a chunk of free memory is stored at the very *end* of the block.
      *
@@ -356,7 +357,8 @@ free_memory_block_t *block_from_header(header_t *header) {
     return (free_memory_block_t *)((uint8_t *)header->memory + header->size) - 1;
 }
 
-void freeblock_assert_sane(free_memory_block_t *block) {
+#ifdef RMALLOC_DEBUG
+static void freeblock_assert_sane(free_memory_block_t *block) {
     ptr_t pb = (ptr_t)block;
     ptr_t pbfh = (ptr_t)block_from_header(block->header);
     if (pb != pbfh) {
@@ -368,8 +370,11 @@ void freeblock_assert_sane(free_memory_block_t *block) {
         abort();
     }
 }
+#endif
 
-bool freeblock_checkloop(free_memory_block_t *block) {
+
+#ifdef RMALLOC_DEBUG
+static bool freeblock_checkloop(free_memory_block_t *block) {
     free_memory_block_t *a = block;
     while (block != NULL) {
         block = block->next;
@@ -383,7 +388,7 @@ bool freeblock_checkloop(free_memory_block_t *block) {
     }
     return false;
 }
-
+#endif
 
 
 uint32_t rmstat_total_free_list() {
@@ -501,8 +506,8 @@ void rmstat_get_used_blocks(ptr_t *blocks) {
 }
 
 
-
-void assert_list_is_sorted(header_t *root)
+#ifdef RMALLOC_DEBUG
+static void assert_list_is_sorted(header_t *root)
 {
     header_t *prev = root;
     while (root != NULL)
@@ -514,6 +519,8 @@ void assert_list_is_sorted(header_t *root)
         root = root->next;
     }
 }
+#endif
+
 
 //volatile bool dummy = false;
 
@@ -594,12 +601,11 @@ void rmstat_print_headers(bool only_type)
  *******************************************************************************/
 
 /* header */
-
 bool header_is_unused(header_t *header) {
     return header && header->memory == NULL;
 }
 
-void header_clear(header_t *h) {
+static void header_clear(header_t *h) {
     h->memory = NULL;
     h->size = 0;
     h->next = NULL;
@@ -608,7 +614,8 @@ void header_clear(header_t *h) {
 #endif
 }
 
-header_t *header_set_unused(header_t *header) {
+
+static header_t *header_set_unused(header_t *header) {
 
     header_clear(header);
 
@@ -675,7 +682,9 @@ finish:
 
     return h;
 }
-header_t *header_new(bool insert_in_list) {
+
+
+static header_t *header_new(bool insert_in_list) {
     header_t *header = header_find_free();
     if (header) {
         header->flags = HEADER_UNLOCKED;
@@ -707,15 +716,15 @@ header_t *header_new(bool insert_in_list) {
 
 /* memory block */
 
-void update_highest_address_if_needed(header_t *h) {
+static void update_highest_address_if_needed(header_t *h) {
     if (h)
     {
         g_state->highest_address_header = h;
     }
 }
 
-header_t *freeblock_find(uint32_t size);
-header_t *block_new(ptr_t size) {
+static header_t *freeblock_find(uint32_t size);
+static header_t *block_new(ptr_t size) {
 #ifdef RMALLOC_DEBUG
     fprintf(stderr, "block new: %d\n", size);
 #endif
@@ -785,11 +794,13 @@ header_t *block_new(ptr_t size) {
 
     return h;
 }
+
+
 /* 1. mark the block's header as free
  * 2. insert block info
  * 3. extend the free list
  */
-header_t *block_free(header_t *header) {
+static header_t *block_free(header_t *header) {
     if (!header || header->flags == HEADER_FREE_BLOCK)
         return header;
 
@@ -994,7 +1005,7 @@ header_t *block_free(header_t *header) {
 /* insert item at the appropriate location.
  * don't take into consideration that it can exist elsewhere
  */
-void freeblock_insert(free_memory_block_t *block) {
+static void freeblock_insert(free_memory_block_t *block) {
 
     if (block->header->size + (ptr_t)block->header->memory >= (ptr_t)g_state->header_bottom) {
         abort();
@@ -1032,7 +1043,7 @@ void freeblock_insert(free_memory_block_t *block) {
  * input:  [                        block]
  * output: [     rest|              block]
  */
-free_memory_block_t *freeblock_shrink_with_header(free_memory_block_t *block, header_t *h, uint32_t size) {
+static free_memory_block_t *freeblock_shrink_with_header(free_memory_block_t *block, header_t *h, uint32_t size) {
     if (!block)
         return NULL;
 
@@ -1107,7 +1118,9 @@ free_memory_block_t *freeblock_shrink_with_header(free_memory_block_t *block, he
 
     return b;
 }
-free_memory_block_t *freeblock_shrink(free_memory_block_t *block, uint32_t size) {
+
+
+static free_memory_block_t *freeblock_shrink(free_memory_block_t *block, uint32_t size) {
     return freeblock_shrink_with_header(block, NULL, size);
 }
 
@@ -1116,7 +1129,7 @@ free_memory_block_t *freeblock_shrink(free_memory_block_t *block, uint32_t size)
  *
  * any block that are larger than the slot's size will be moved upon traversal!
  */
-header_t *freeblock_find(uint32_t size) {
+static header_t *freeblock_find(uint32_t size) {
     // there can be blocks of 2^k <= n < 2^(k+1)
     int target_k = log2_(size)+1;
     int k = target_k;
@@ -1328,6 +1341,8 @@ header_t *freeblock_find(uint32_t size) {
     // no block found.
     return NULL;
 }
+
+
 void header_sort_all() {
 #ifdef RMALLOC_DEBUG
     fprintf(stderr, "g_header_root before header_sort_all(): %p\n", g_header_root);
@@ -1558,9 +1573,9 @@ static void rebuild_free_block_slots() {
 
 void rminit(void *heap, uint32_t size) {
     if ( g_state == NULL ) {
-	    g_state = calloc(1, sizeof(rmalloc_meta_t));
-	}
-	
+        g_state = calloc(1, sizeof(rmalloc_meta_t));
+    }
+
     g_state->memory_size = size;
 
     // +1 to round up. e.g. log2(15)==3
@@ -1905,7 +1920,9 @@ void rmcompact(uint32_t maxtime) {
 
                 // Link F5 to C
                 spare_free->next = free_last_next;
+#ifdef RMALLOC_DEBUG
                 assert_handles_valid(unlocked_first);
+#endif
             }
             else
             {
@@ -2028,7 +2045,6 @@ void rmcompact(uint32_t maxtime) {
 
     // remove from list.
     largest_header->next = NULL;
-
 
     // adjust g_header_bottom
     while (header_is_unused(g_state->header_bottom)) {
