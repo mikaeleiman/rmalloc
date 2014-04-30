@@ -1,11 +1,11 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
-#include <string.h>
-#include <stdbool.h>
+//#include <stdio.h>
 
 #include "compact.h"
 #include "compact_internal.h"
+
+#include <stdlib.h>
+#include <time.h>
+#include <string.h>
 
 
 #ifdef __MACH__
@@ -49,6 +49,7 @@ uint64_t uptime_nanoseconds(void)
 
 uint64_t uptime_nanoseconds(void)
 {
+    // TODO replace with start/elapsed
     return bsp_timer_start() * 1000;
 }
 
@@ -78,7 +79,9 @@ int g_free_block_hits = 0;
 uint32_t g_free_block_alloc = 0;
 
 // DEBUG
+#ifdef RMALLOC_DEBUG
 uint32_t g_memlayout_sequence = 0;
+#endif
 
 /* header */
 // headers grow down in memory
@@ -92,7 +95,9 @@ header_t *g_unused_header_root = NULL;
 
 header_t *g_highest_address_header = NULL;
 
+#if RMALLOC_DEBUG
 static bool g_debugging = false;
+#endif
 
 #if 0 
 #if __x86_64__
@@ -102,8 +107,12 @@ typedef uint32_t ptr_t;
 #endif
 #endif
 
+
+#ifdef RMALLOC_DEBUG
 #define fprintf(...) 
 #define fputc(...)
+#endif
+
 
 // code
 
@@ -184,9 +193,10 @@ void freeblock_verify_lower_size() {
         ptr_t size = 1<<k;
         while (b) {
             if (b->header->size < size || b->header->memory == NULL) {
+#ifdef RMALLOC_DEBUG
                 fprintf(stderr, "\nfreeblock_verify_lower_size(): block %p at mem %p at k=%d has size %d < %d\n",
                         b, b->header->memory, k, b->header->size, size);
-
+#endif
                 abort();
             }
 
@@ -306,6 +316,7 @@ void dump_memory_layout() {
 #endif
 
 
+#ifdef RMALLOC_DEBUG
 void freeblock_print() {
     for (int i=0; i<g_free_block_slot_count; i++) {
         fprintf(stderr, "%d / %d bytes / %d kb: ", i, 1<<i, (1<<i)/1024);
@@ -317,6 +328,7 @@ void freeblock_print() {
         fprintf(stderr, "\n");
     }
 }
+#endif
 
 bool freeblock_exists_memory(void *ptr) {
     for (int i=0; i<g_free_block_slot_count; i++) {
@@ -380,7 +392,9 @@ void freeblock_assert_sane(free_memory_block_t *block) {
     if (pb != pbfh) {
         //int diff = (pb > pbfh) ? pb - pbfh : pbfh - pb;
 
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "freeblock_assert_sane(%p size %d): diff %d bytes\n", block, block->header->size, diff);
+#endif
         abort();
     }
 }
@@ -390,7 +404,9 @@ bool freeblock_checkloop(free_memory_block_t *block) {
     while (block != NULL) {
         block = block->next;
         if (block == a) {
+#ifdef RMALLOC_DEBUG
             fprintf(stderr, "loop in memory block %p slot %d\n", block, log2_(block->header->size));
+#endif
             abort();
             return true;
         }
@@ -409,8 +425,11 @@ uint32_t rmstat_total_free_list() {
             total += b->header->size;
             b = b->next;
             if (a == b) {
+#ifdef RMALLOC_DEBUG
                 fprintf(stderr, "stat_total_free_list(), panic - found a loop in slot %d item %p!\n", i, a);
                 freeblock_print();
+#endif
+                abort();
             }
         }
     }
@@ -427,8 +446,11 @@ uint32_t rmstat_largest_free_block() {
                 largest = b->header->size;
             b = b->next;
             if (a == b) {
+#ifdef RMALLOC_DEBUG
                 fprintf(stderr, "stat_total_free_list(), panic - found a loop in slot %d item %p!\n", i, a);
                 freeblock_print();
+#endif
+                abort();
             }
         }
     }
@@ -523,13 +545,17 @@ void assert_list_is_sorted(header_t *root)
     }
 }
 
-volatile bool dummy = false;
+//volatile bool dummy = false;
 
+
+#if RMALLOC_DEBUG
 
 void rmstat_set_debugging(bool enable)
 {
     g_debugging = enable;
 }
+
+#endif
 
 
 #if 0
@@ -629,7 +655,7 @@ header_t *header_set_unused(header_t *header) {
     g_unused_header_root->next_unused = NULL;
 #endif
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     assert_handles_valid(g_header_root);
 #endif
 
@@ -672,7 +698,7 @@ header_t *header_find_free(void) {
 
 finish:
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     if (h && header_is_unused(h) == false)
         abort();
 #endif
@@ -698,9 +724,13 @@ header_t *header_new(bool insert_in_list) {
             // position in the chain based on header_t::memory.
             header->next = NULL;
         }
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "== header_new() = %p\n", header);
+#endif
     } else {
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "== header_new() = NULL\n", header);
+#endif
     }
     return header;
 }
@@ -716,12 +746,14 @@ void update_highest_address_if_needed(header_t *h) {
 
 header_t *freeblock_find(uint32_t size);
 header_t *block_new(ptr_t size) {
+#ifdef RMALLOC_DEBUG
     fprintf(stderr, "block new: %d\n", size);
+#endif
     // minimum size for later use in free list: header pointer, next pointer
     if (size < sizeof(free_memory_block_t))
         size = sizeof(free_memory_block_t);
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     freeblock_verify_lower_size();
     //assert_blocks();
     assert_handles_valid(g_header_root);
@@ -734,10 +766,12 @@ header_t *block_new(ptr_t size) {
     //if ((uint8_t *)g_memory_top+size < (uint8_t *)g_header_bottom) {
         h = header_new(/*insert_in_list*/true);
         if (!h) {
+#ifdef RMALLOC_DEBUG
             fprintf(stderr, "header_new: oom.\n");
+#endif
             return NULL;
         }
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
         if ((uint8_t *)g_memory_top+size >= (uint8_t *)g_header_bottom) {
             fprintf(stderr, "memory top (%p) + size (%d) >= %p\n", g_memory_top, size, g_header_bottom);
             abort();
@@ -762,7 +796,9 @@ header_t *block_new(ptr_t size) {
 
         // okay, we're *really* out of memory
         if (!h) {
+#ifdef RMALLOC_DEBUG
             fprintf(stderr, "freeblock_find: oom\n");
+#endif
             return NULL;
         }
         if ((ptr_t)h->memory <= (ptr_t)g_memory_bottom)
@@ -787,8 +823,8 @@ header_t *block_free(header_t *header) {
     if (!header || header->flags == HEADER_FREE_BLOCK)
         return header;
 
+#ifdef RMALLOC_DEBUG
     fprintf(stderr, "block free: 0x%X\n", header);
-#ifdef DEBUG
     freeblock_verify_lower_size();
     //assert_blocks();
 #endif
@@ -919,7 +955,7 @@ header_t *block_free(header_t *header) {
 #endif
 
     if (block->header->size + (ptr_t)block->header->memory >= (ptr_t)g_header_bottom)
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
         abort();
 #else
         return NULL;
@@ -932,13 +968,13 @@ header_t *block_free(header_t *header) {
     int index = log2_(header->size);
 
     if (block->header->size != header->size)
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
         abort();
 #else
         return NULL;
 #endif
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     freeblock_assert_sane(block);
     //assert_blocks();
 #endif
@@ -963,7 +999,7 @@ header_t *block_free(header_t *header) {
 
     //freeblock_checkloop(g_free_block_slots[index]);
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     freeblock_checkloop(block);
     //assert_blocks();
 #endif
@@ -1004,7 +1040,7 @@ void freeblock_insert(free_memory_block_t *block) {
     block->next = g_free_block_slots[k];
     g_free_block_slots[k] = block;
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     freeblock_verify_lower_size();
 #endif
 
@@ -1032,15 +1068,19 @@ free_memory_block_t *freeblock_shrink_with_header(free_memory_block_t *block, he
 
     int diff = block->header->size - size;
     if (diff < (int)sizeof(free_memory_block_t)) {
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "    1. freeblockshrink withheader block->header->size %d - size %d = diff = %d\n",
                 block->header->size, size, diff);
+#endif
         return NULL;
     }
 
     if (!h) {
         h = header_new(/*insert_in_list*/true);
         if (h == NULL) {
+#ifdef RMALLOC_DEBUG
             fprintf(stderr, "    2. couldn't allocate new header.\n");
+#endif
             return NULL;
         }
     }
@@ -1050,16 +1090,18 @@ free_memory_block_t *freeblock_shrink_with_header(free_memory_block_t *block, he
     }
 
     if (h == block->header) {
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "ERROR: freeblock_shrink, new header %p same as block header %p\n", h, block->header);
+#endif
+        // TODO abort?
     }
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     freeblock_assert_sane(block);
     //assert_blocks();
-#endif
-
 
     fprintf(stderr, "freeblockshrink: address of block->memory = %p with size = %d, address of block = %p == %p (or error!)\n", block->header->memory, block->header->size, block, (uint8_t *)block->header->memory + block->header->size - sizeof(free_memory_block_t));
+#endif
 
     h->flags = HEADER_FREE_BLOCK;
     h->memory = block->header->memory;
@@ -1074,6 +1116,7 @@ free_memory_block_t *freeblock_shrink_with_header(free_memory_block_t *block, he
     b->next = NULL; 
     b->header = h;
 
+#ifdef RMALLOC_DEBUG
     fprintf(stderr, "    3. freeblockshrink withheader h: %p  %d  %p  %d\n", h, h->size, h->memory, h->flags);
 
     fprintf(stderr, "    4. freeblockshrink withheader block %p header %p size %d\n", block, block->header, block->header->size);
@@ -1083,9 +1126,12 @@ free_memory_block_t *freeblock_shrink_with_header(free_memory_block_t *block, he
                 b, b->header->memory, b->header->size,
                 block, block->header->memory, block->header->size);
     }
+#endif
 
     if (block->header->size != size) {
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "ERROR: freeblock_shrink, new block's header %p (h = %p) size %d not new size %d\n", b->header, h, b->header->size, size);
+#endif
         abort();
     }
 
@@ -1113,7 +1159,7 @@ header_t *freeblock_find(uint32_t size) {
     free_memory_block_t *found_block = NULL;
     free_memory_block_t *fallback_block = NULL;
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     freeblock_verify_lower_size();
 #endif
 
@@ -1172,8 +1218,10 @@ header_t *freeblock_find(uint32_t size) {
                 block = nextblock;
             } else {
                 if (block->header->size < size) {
+#ifdef RMALLOC_DEBUG
                     fprintf(stderr, "block %p too small (%d vs %d) in slot %d vs actual k = %d\n",
                             block, block->header->size, size, k, log2_(size));
+#endif
                     abort();
                 }
 
@@ -1184,33 +1232,40 @@ header_t *freeblock_find(uint32_t size) {
             k = log2_(size);
             upper_size = 1<<(k+1);
 
+#if RMALLOC_DEBUG
             fprintf(stderr, "freeblock_find(%d) scanning in %d\n", size, k);
+#endif
 
             block = g_free_block_slots[k];
             free_memory_block_t *prevblock = block, *nextblock = block;
             while (block) {
                 // there's a block here. it's also guaranteed to fit.
 
-                //fprintf(stderr,"*2. %p -> %p (%c) size %d (%s)?\n", block, block->header, (uint32_t)block->header&0x000000FF, block->header->size, block->header->size >= size ? "yes" : "no");
-
-#if 1 // does not work, freeblock_insert()
                 if (block->header->size >= size) {
+#ifdef RMALLOC_DEBUG
                     fprintf(stderr, "freeblock_find: block->header->size %d >= (requested) size %d\n", block->header->size, size);
+#endif
                     // remove from the root? (easier)
                     if (g_free_block_slots[k] == block) {
                         // figure out what to do with the block
                         if (block->header->size > upper_size) {
+#ifdef RMALLOC_DEBUG
                             fprintf(stderr, "-> root, too large, moving %p, next = %p.\n", block, block->next);
+#endif
                             fallback_block = block;
                             g_free_block_slots[k] = block->next;
 
                             freeblock_insert(block);
 
                             block = g_free_block_slots[k];
+#ifdef RMALLOC_DEBUG
                             fprintf(stderr, "->-> block = %p\n", block);
+#endif
                         } else {
                             // found it!
+#ifdef RMALLOC_DEBUG
                             fprintf(stderr, "-> root, correct size.\n");
+#endif
                             found_block = block;
                             g_free_block_slots[k] = block->next;
                             break;
@@ -1220,7 +1275,9 @@ header_t *freeblock_find(uint32_t size) {
 
                         // figure out what to do with the block
                         if (block->header->size > upper_size) {
+#ifdef RMALLOC_DEBUG
                             fprintf(stderr, "-> not root, too large, moving %p, next = %p.\n", block, block->next);
+#endif
                             fallback_block = block;
 
                             nextblock = block->next;
@@ -1229,12 +1286,18 @@ header_t *freeblock_find(uint32_t size) {
                             freeblock_insert(block);
 
                             block = nextblock;
+#ifdef RMALLOC_DEBUG
                             fprintf(stderr, "->-> block = %p\n", block);
+#endif
 
-                            if (prevblock->next != block) abort();
+                            if (prevblock->next != block) { 
+                                abort();
+                            }
                         } else {
                             // found it!
+#ifdef RMALLOC_DEBUG
                             fprintf(stderr, "-> not root, correct size.\n");
+#endif
                             prevblock->next = block->next;
                             found_block = block;
                             break;
@@ -1244,28 +1307,33 @@ header_t *freeblock_find(uint32_t size) {
                     prevblock = block;
                     block = block->next;
                 }
-#endif
             }
         }
     }
 
     if (found_block) {
         // resize & insert
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "-> shrinking found_block (header %p size %d) to new size %d\n",
                 found_block->header, found_block->header->size, size);
+#endif
         free_memory_block_t *rest = NULL;
         rest = freeblock_shrink(found_block, size);
         if (rest == NULL) {
             // this can, oddly enough happen, if there are no headers left.
             return NULL;
         }
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "-> after shrinkage, found_block size %d, returning header %p\n", found_block->header->size, found_block->header);
+#endif
         if (rest)
             freeblock_insert(rest);
 
         return found_block->header;
     } else if (fallback_block) {
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "fallback block of header %p.\n", fallback_block->header);
+#endif
         // rats, no block found.
         int fallback_k = log2_(fallback_block->header->size);
 
@@ -1284,12 +1352,16 @@ header_t *freeblock_find(uint32_t size) {
     }
 
 
+#ifdef RMALLOC_DEBUG
     fprintf(stderr, "freeblock_find(): no block found.\n");
+#endif
     // no block found.
     return NULL;
 }
 void header_sort_all() {
+#ifdef RMALLOC_DEBUG
     fprintf(stderr, "g_header_root before header_sort_all(): %p\n", g_header_root);
+#endif
     //g_header_root = header__sort(g_header_root, header__cmp);
     //header_t *header__sort(header_t *list, int is_circular, int is_double, compare_cb cmp) {
     g_header_root = header__sort(g_header_root, 0, 0, header__cmp);
@@ -1486,7 +1558,7 @@ static void rebuild_free_block_slots() {
             block->header = h; 
             block->next = NULL;
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
             // this should _always_ point to (h->memory+h->size - sizeof(free_block_memory_t))
             assert_memory_is_free((void *)block);
 #endif
@@ -1509,7 +1581,7 @@ static void rebuild_free_block_slots() {
         h = h->next;
     }
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     //assert_blocks();
 #endif
 }
@@ -1557,18 +1629,20 @@ void rmdestroy() {
 
 handle_t rmmalloc(int size) {
     header_t *h = block_new(size);
-#if DEBUG
+#ifdef RMALLOC_DEBUG
     g_memlayout_sequence++;
     dump_memory_layout();
     assert_handles_valid(g_header_root);
 #endif
 
     if (h == NULL) {
+#ifdef RMALLOC_DEBUG
         fprintf(stderr, "h = NULL.\n");
+#endif
         return NULL;
     }
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     //memset(h->memory, header_fillchar(h), h->size);
     //rebuild_free_block_slots();
     //assert_blocks();
@@ -1580,7 +1654,7 @@ handle_t rmmalloc(int size) {
 void rmfree(handle_t h) {
     block_free((header_t *)h);
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     g_memlayout_sequence++;
     dump_memory_layout();
     assert_handles_valid(g_header_root);
@@ -1611,7 +1685,7 @@ void rmcompact(uint32_t maxtime) {
     // sort headers in ascending memory order. headers with ->memory == NULL are in the end.
     header_sort_all();
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     uint32_t start_free = 0, start_locked = 0, start_unlocked = 0, start_size_unlocked = 0;
     get_block_count(&start_free, &start_locked, &start_unlocked, NULL, &start_size_unlocked);
 
@@ -1642,7 +1716,7 @@ void rmcompact(uint32_t maxtime) {
 
         ///////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
         assert_handles_valid(g_header_root);
 #endif
 
@@ -1707,7 +1781,7 @@ void rmcompact(uint32_t maxtime) {
         uint32_t used_offset = header_memory_offset(free_first, unlocked_first);
         if (used_offset == 0)
         {
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
             //abort();
             used_offset = 0;
 #endif
@@ -1754,7 +1828,7 @@ void rmcompact(uint32_t maxtime) {
             free_memory->flags = HEADER_FREE_BLOCK;
             free_memory->memory = (void *)(free_memory_start + unlocked_size);
             free_memory->size = free_size;
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
             assert_handles_valid(g_header_root);
 #endif
 #if 0
@@ -1780,7 +1854,7 @@ void rmcompact(uint32_t maxtime) {
             // easy case
             unlocked_last->next = free_memory;
             free_memory->next = unlocked_last_next;
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
             assert_handles_valid(unlocked_first);
 #endif
         }
@@ -1813,7 +1887,7 @@ void rmcompact(uint32_t maxtime) {
 
             free_unlocked->memory = (void *)unlocked_first_memory;
             free_unlocked->size = unlocked_size;
-            #ifdef DEBUG
+            #ifdef RMALLOC_DEBUG
             //memset(free_unlocked->memory, 0x43, free_unlocked->size); // TODO: Can be safely removed.
             #endif
 
@@ -1825,7 +1899,7 @@ void rmcompact(uint32_t maxtime) {
 
             // Link F6 to A
             free_unlocked->next = unlocked_last_next;
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
             assert_handles_valid(free_unlocked);
 #endif
 
@@ -1836,7 +1910,7 @@ void rmcompact(uint32_t maxtime) {
                 spare_free->flags = HEADER_FREE_BLOCK;
                 spare_free->memory = (void *)((ptr_t)unlocked_first->memory + unlocked_size);
                 spare_free->size = free_size - unlocked_size;
-                #ifdef DEBUG
+                #ifdef RMALLOC_DEBUG
                 //memset(spare_free->memory, 0x44, spare_free->size); // TODO: Can be safely removed.
                 #endif
 
@@ -1852,7 +1926,9 @@ void rmcompact(uint32_t maxtime) {
             }
             else
             {
+#ifdef RMALLOC_DEBUG
                 fprintf(stderr, "extending LU with %d bytes\n", free_size - unlocked_size);
+#endif
 
                 // Extend LU
                 unlocked_last->size += (free_size - unlocked_size);
@@ -1861,14 +1937,14 @@ void rmcompact(uint32_t maxtime) {
                 unlocked_last->next = free_last_next;
 
 
-                #ifdef DEBUG
+                #ifdef RMALLOC_DEBUG
                 //memset(h->memory, 0x45, h->size);
                 //memset(h->memory, header_fillchar(h), h->size);
                 assert_handles_valid(unlocked_first);
                 #endif
             }
         }
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
         assert_handles_valid(g_header_root);
 #endif
 
@@ -1914,14 +1990,14 @@ void rmcompact(uint32_t maxtime) {
         root = unlocked_last;
 
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
         assert_list_is_sorted(g_header_root);
         assert_handles_valid(g_header_root);
 #endif
 
     }
 
-#ifdef DEBUG
+#ifdef RMALLOC_DEBUG
     if (g_debugging)
     {
         rmstat_print_headers(false);
@@ -1930,7 +2006,9 @@ void rmcompact(uint32_t maxtime) {
 
     // TODO: integrate into main loop.
     ptr_t highest_used_address = (ptr_t)g_memory_bottom;
+#ifdef RMALLOC_DEBUG
     fprintf(stderr, "Previous top: 0x%X (bottom 0x%X)\n", g_memory_top, g_memory_bottom);
+#endif
     header_t *h = g_header_root;
     header_t *largest_header = h;
     int count = 0;
@@ -1978,9 +2056,9 @@ void rmcompact(uint32_t maxtime) {
 
     // Let's hope this works!
     g_memory_top = (void *)highest_used_address;
+#ifdef RMALLOC_DEBUG
     fprintf(stderr, "New top (after %d items of total size %d bytes): 0x%X, topmost header at 0x%X + %d = 0x%X\n", count, total_size, g_memory_top, largest_header->memory, largest_header->size, (ptr_t)largest_header->memory + largest_header->size);
 
-#ifdef DEBUG
     uint32_t end_free = 0, end_locked = 0, end_unlocked = 0, end_size_unlocked=0;
     get_block_count(&end_free, &end_locked, &end_unlocked, NULL, &end_size_unlocked);
     assert_handles_valid(g_header_root);
@@ -1994,8 +2072,8 @@ void rmcompact(uint32_t maxtime) {
         }
 #endif
 
+#if RMALLOC_DEBUG
     g_memlayout_sequence++;
-#if 0
     dump_memory_layout();
 #endif
 }
