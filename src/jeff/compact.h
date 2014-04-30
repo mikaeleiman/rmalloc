@@ -38,6 +38,10 @@
 
 typedef void *handle_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void rminit(void *heap, uint32_t size);
 void rmdestroy();
 
@@ -60,10 +64,6 @@ free_memory_block_t *block_from_header(header_t *header);
 header_t *block_new(int size);
 header_t *block_free(header_t *header);
 */
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 uint32_t rmstat_total_free_list();
 uint32_t rmstat_largest_free_block();

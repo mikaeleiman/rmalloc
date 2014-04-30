@@ -7,6 +7,53 @@
 #include "compact.h"
 #include "compact_internal.h"
 
+
+#ifdef __MACH__
+// OSX version
+#include <CoreServices/CoreServices.h>
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+
+uint64_t uptime_nanoseconds(void)
+{
+    uint64_t start;
+    uint64_t timeNano;
+    static mach_timebase_info_data_t    sTimebaseInfo;
+
+    // Start the clock.
+
+    start = mach_absolute_time();
+
+    // Convert to nanoseconds.
+
+    // If this is the first time we've run, get the timebase.
+    // We can use denom == 0 to indicate that sTimebaseInfo is 
+    // uninitialised because it makes no sense to have a zero 
+    // denominator is a fraction.
+
+    if ( sTimebaseInfo.denom == 0 ) {
+        (void) mach_timebase_info(&sTimebaseInfo);
+    }
+
+    // Do the maths. We hope that the multiplication doesn't 
+    // overflow; the price you pay for working in fixed point.
+
+    timeNano = start * sTimebaseInfo.numer / sTimebaseInfo.denom;
+
+    return timeNano / 1000;
+}
+
+#else
+uint64_t uptime_nanoseconds(void)
+{
+    struct timespec t;
+
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    
+    return t.tv_sec*1000000000 + t.tv_nsec;
+}
+#endif
+
 /* memory layout
  */
 void *g_memory_bottom;
@@ -38,10 +85,12 @@ header_t *g_highest_address_header = NULL;
 
 static bool g_debugging = false;
 
+#if 0 
 #if __x86_64__
 typedef uint64_t ptr_t;
 #else
 typedef uint32_t ptr_t;
+#endif
 #endif
 
 #define fprintf(...) 
@@ -58,8 +107,6 @@ uint32_t log2_(uint32_t n)
 }
 
 
-void header_sort_all();
-inline bool header_is_unused(header_t *header);
 
 void assert_handles_valid(header_t *header_root) {
 
@@ -371,7 +418,7 @@ uint32_t rmstat_largest_free_block() {
 
 void *rmstat_highest_used_address(bool full_calculation) {
     if (full_calculation) {
-        void *highest = NULL;
+        ptr_t highest = 0;
         
         header_t *h = g_header_root;
 
@@ -379,15 +426,17 @@ void *rmstat_highest_used_address(bool full_calculation) {
         while (h != NULL) {
             if (h->flags != HEADER_FREE_BLOCK) {
                 //printf("*%p ", h->memory);
-                if (h->size + (uint8_t *)h->memory > highest)
-                    highest = h->size + (uint8_t *)h->memory;
-            } else
-                ;//printf("%p ", h->memory);
+                if (h->size + (ptr_t)h->memory > highest) {
+                    highest = h->size + (ptr_t)h->memory;
+                }
+            } else {
+                //printf("%p ", h->memory);
+            }
             h = h->next;
         }
         //printf("\n");
 
-        return highest;
+        return (void*)highest;
     } else {
         return (void *)((ptr_t)g_highest_address_header->memory + g_highest_address_header->size);
     }
@@ -517,7 +566,7 @@ void rmstat_print_headers(bool only_type)
     freeblock_print();
     printf("==========================================================================\n");
     int diff = (ptr_t)g_header_top - (ptr_t)g_header_bottom;
-    printf("Total %d live blocks, occupying %d bytes/%d kb = %.2d%% of total heap size\n", g_header_top - g_header_bottom, diff, diff/1024, (int)((float)diff*100.0/(float)g_memory_size));
+    printf("Total %ld live blocks, occupying %d bytes/%d kb = %.2d%% of total heap size\n", g_header_top - g_header_bottom, diff, diff/1024, (int)((float)diff*100.0/(float)g_memory_size));
 }
 
 
@@ -529,10 +578,11 @@ void rmstat_print_headers(bool only_type)
 
 /* header */
 
-inline bool header_is_unused(header_t *header) {
+bool header_is_unused(header_t *header) {
     return header && header->memory == NULL;
 }
-inline void header_clear(header_t *h) {
+
+void header_clear(header_t *h) {
     h->memory = NULL;
     h->size = 0;
     h->next = NULL;
@@ -541,7 +591,7 @@ inline void header_clear(header_t *h) {
 #endif
 }
 
-inline header_t *header_set_unused(header_t *header) {
+header_t *header_set_unused(header_t *header) {
 
     header_clear(header);
 
@@ -589,7 +639,7 @@ header_t *header_find_free(bool spare_two_for_compact) {
 #endif
 
     // nothing found
-    if (g_header_bottom - limit > g_memory_top) {
+    if ((void*)(g_header_bottom - limit) > g_memory_top) {
         g_header_bottom--;
 
         h = g_header_bottom;
@@ -847,7 +897,7 @@ header_t *block_free(header_t *header) {
     block->next = NULL;
 #endif
 
-    if (block->header->size + (uint8_t *)block->header->memory >= (void *)g_header_bottom)
+    if (block->header->size + (ptr_t)block->header->memory >= (ptr_t)g_header_bottom)
 #ifdef DEBUG
         abort();
 #else
@@ -919,8 +969,9 @@ header_t *block_free(header_t *header) {
  */
 void freeblock_insert(free_memory_block_t *block) {
 
-    if (block->header->size + (uint8_t *)block->header->memory >= (void *)g_header_bottom)
+    if (block->header->size + (ptr_t)block->header->memory >= (ptr_t)g_header_bottom) {
         abort();
+    }
 
     int k = log2_(block->header->size);
 
@@ -1552,14 +1603,14 @@ void rmcompact(int maxtime) {
 
     header_t *root = g_header_root;
 
-    struct timespec start_time, now;
-    int time_diff;
-    clock_gettime(CLOCK_MONOTONIC, &start_time);
+    uint64_t start_time, now;
+    uint64_t time_diff;
+    start_time = uptime_nanoseconds();
 
     bool done = false;
     while (!done) {
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        time_diff = now.tv_sec*1000 + now.tv_nsec/1000000 - start_time.tv_sec*1000 - start_time.tv_nsec/1000000;
+        now = uptime_nanoseconds();
+        time_diff = now - start_time;
 
         if (maxtime > 0 && time_diff >= maxtime) {
             done = true;
