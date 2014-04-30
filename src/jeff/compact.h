@@ -36,10 +36,13 @@
  * - 
  */
 
-typedef void *handle_t;
+typedef struct header_t header_t;
+typedef header_t* handle_t;
 
 #ifdef __cplusplus
 extern "C" {
+#else
+#include <stdbool.h>
 #endif
 
 void rminit(void *heap, uint32_t size);

@@ -3,8 +3,7 @@
 
 #define  __STDC_LIMIT_MACROS
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "compact.h"
 
 /* header, see compact.h
  */
@@ -26,7 +25,8 @@ typedef uint32_t ptr_t;
 #define HEADER_LOCKED       (1<<1)
 #define HEADER_WEAK_LOCKED  (1<<2)
 
-typedef struct header_t {
+#pragma pack(1)
+struct header_t {
     void *memory;
     uint32_t size;
     uint8_t flags;
@@ -35,7 +35,8 @@ typedef struct header_t {
 #if JEFF_MAX_RAM_VS_SLOWER_MALLOC == 0
     struct header_t *next_unused;
 #endif
-} __attribute__ ((packed)) header_t;
+};
+#pragma pack()
 
 /* free memory block, see compact.h
  */

@@ -444,7 +444,7 @@ TEST_F(AllocTest, RandomAllormfreeFreeHalf) {
             if (i++%2 == 0) {
                 //fprintf(stderr, "free %p size %d (slot %d) at location %d\n", block_from_header(h), h->size, log2_(h->size), g_header_top - h);
                 //freeblock_print();
-                rmfree((handle_t *)h);
+                rmfree((handle_t)h);
             }
         }
         h--;
