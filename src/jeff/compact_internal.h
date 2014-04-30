@@ -49,6 +49,43 @@ typedef struct free_memory_block_t {
 extern "C" {
 #endif // __cplusplus
 
+typedef struct rmalloc_meta_t rmalloc_meta_t;
+
+struct rmalloc_meta_t {
+    /* memory layout
+     */
+    void *memory_bottom;
+    void *memory_top;
+    uint32_t memory_size;
+
+    /* linked list at each position
+     * each stores 2^k - 2^(k+1) sized blocks
+     */
+    free_memory_block_t **free_block_slots;
+    short free_block_slot_count; // log2(heap_size)
+    int free_block_hits;
+    uint32_t free_block_alloc;
+
+    /* header */
+    // headers grow down in memory
+    header_t *header_top;
+    header_t *header_bottom;
+    header_t *header_root; // linked list
+    int header_used_count; // for spare headers in compact
+    header_t *last_free_header;
+
+    header_t *unused_header_root;
+
+    header_t *highest_address_header;
+
+    #ifdef RMALLOC_DEBUG
+    uint32_t g_memlayout_sequence = 0;
+    static bool g_debugging = false;
+    #endif
+};
+
+extern rmalloc_meta_t *g_state;
+/*
 extern void *g_memory_bottom;
 extern void *g_memory_top;
 extern uint32_t g_memory_size;
@@ -65,6 +102,7 @@ extern header_t *g_last_free_header;
 extern header_t *g_unused_header_root;
 extern header_t *g_highest_address_header;
 //extern static bool g_debugging = false;
+*/
 
 uint32_t log2_(uint32_t n);
 typedef ptr_t (*compare_cb)(void *a, void *b);

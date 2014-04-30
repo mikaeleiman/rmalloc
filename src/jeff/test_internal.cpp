@@ -50,14 +50,14 @@ protected:
 };
 
 TEST_F(AllocTest, Init) {
-    ASSERT_EQ(g_memory_bottom, (void *)((ptr_t)storage + g_free_block_slot_count*sizeof(free_memory_block_t *)));
-    ASSERT_EQ(g_memory_top, g_memory_bottom);
-    ASSERT_EQ((void *)g_header_top, (void *)((ptr_t)g_free_block_slots+heap_size));
-    ASSERT_EQ((ptr_t)g_free_block_slots, (ptr_t)g_memory_bottom - g_free_block_slot_count*sizeof(free_memory_block_t *));
-    ASSERT_EQ(g_free_block_slot_count, log2_(heap_size)+1); // to accomodate 2^(k+1) sized blocks
+    ASSERT_EQ(g_state->memory_bottom, (void *)((ptr_t)storage + g_state->free_block_slot_count*sizeof(free_memory_block_t *)));
+    ASSERT_EQ(g_state->memory_top, g_state->memory_bottom);
+    ASSERT_EQ((void *)g_state->header_top, (void *)((ptr_t)g_state->free_block_slots+heap_size));
+    ASSERT_EQ((ptr_t)g_state->free_block_slots, (ptr_t)g_state->memory_bottom - g_state->free_block_slot_count*sizeof(free_memory_block_t *));
+    ASSERT_EQ(g_state->free_block_slot_count, log2_(heap_size)+1); // to accomodate 2^(k+1) sized blocks
 
-    ASSERT_LT((void *)g_free_block_slots, g_memory_bottom);
-    ASSERT_LT(g_memory_top, (void *)g_header_bottom);
+    ASSERT_LT((void *)g_state->free_block_slots, g_state->memory_bottom);
+    ASSERT_LT(g_state->memory_top, (void *)g_state->header_bottom);
 }
 
 
@@ -69,7 +69,7 @@ TEST_F(AllocTest, HeaderFindFree) {
     h = header_find_free();
     ASSERT_TRUE(h == NULL);
 
-    ASSERT_EQ(g_header_bottom, g_header_top);
+    ASSERT_EQ(g_state->header_bottom, g_state->header_top);
 }
 
 void test_header_set_used(header_t *h) {
@@ -86,9 +86,9 @@ TEST_F(AllocTest, HeaderNew) {
     h = header_find_free();
     ASSERT_TRUE(h == NULL);
     h = header_new();
-    ASSERT_TRUE(g_header_top == (g_header_bottom+1));
+    ASSERT_TRUE(g_state->header_top == (g_state->header_bottom+1));
     ASSERT_TRUE(h != NULL);
-    ASSERT_TRUE(h == g_header_bottom);
+    ASSERT_TRUE(h == g_state->header_bottom);
 
     // discard it so the next test's calculation will be correct
     test_header_set_used(h);
@@ -110,38 +110,38 @@ TEST_F(AllocTest, HeaderNew) {
 
 // verify that memory top increases and header bottom decreases
 TEST_F(AllocTest, MallocGrowsMemoryHeaders) {
-    uint8_t *memory_top = (uint8_t *)g_memory_top;
-    header_t *header_bottom = g_header_bottom;
+    uint8_t *memory_top = (uint8_t *)g_state->memory_top;
+    header_t *header_bottom = g_state->header_bottom;
 
     int size = 1024;
     handle_t h = rmmalloc(size);
     ASSERT_TRUE(h != NULL);
-    ASSERT_EQ((uint8_t *)g_memory_top, memory_top+1024);
+    ASSERT_EQ((uint8_t *)g_state->memory_top, memory_top+1024);
     // first header is always free - memory location [0]
-    ASSERT_EQ(g_header_bottom, header_bottom);
+    ASSERT_EQ(g_state->header_bottom, header_bottom);
     
     memory_top += 1024;
-    header_bottom = g_header_bottom;
+    header_bottom = g_state->header_bottom;
     handle_t h2 = rmmalloc(size);
     ASSERT_TRUE(h2 != NULL);
-    ASSERT_EQ((uint8_t *)g_memory_top, memory_top+1024);
+    ASSERT_EQ((uint8_t *)g_state->memory_top, memory_top+1024);
 
-    ASSERT_EQ(g_header_bottom, header_bottom-1);
+    ASSERT_EQ(g_state->header_bottom, header_bottom-1);
 }
 
 TEST_F(AllocTest, MallocExhaust) {
     int size = 1024;
     handle_t h = rmmalloc(size);
-    uint8_t *memory_top = (uint8_t *)g_memory_top;
-    header_t *header_bottom = g_header_bottom;
-    while ((uint8_t *)g_header_bottom - (uint8_t *)g_memory_top > size+sizeof(header_t)) {
+    uint8_t *memory_top = (uint8_t *)g_state->memory_top;
+    header_t *header_bottom = g_state->header_bottom;
+    while ((uint8_t *)g_state->header_bottom - (uint8_t *)g_state->memory_top > size+sizeof(header_t)) {
         h = rmmalloc(size);
 
-        ASSERT_EQ((uint8_t *)g_memory_top, memory_top+1024);
-        ASSERT_EQ(g_header_bottom, header_bottom-1);
+        ASSERT_EQ((uint8_t *)g_state->memory_top, memory_top+1024);
+        ASSERT_EQ(g_state->header_bottom, header_bottom-1);
                 
-        memory_top = (uint8_t *)g_memory_top;
-        header_bottom = g_header_bottom;
+        memory_top = (uint8_t *)g_state->memory_top;
+        header_bottom = g_state->header_bottom;
     }
     h = rmmalloc(size);
     ASSERT_TRUE(h == NULL);
@@ -161,7 +161,7 @@ TEST_F(AllocTest, FreeAndMergeSimple) {
     rmfree(h2);
 
     free_memory_block_t *block2 = block_from_header(f2);
-    ASSERT_TRUE(g_free_block_slots[log2_(f2->size)] == block2);
+    ASSERT_TRUE(g_state->free_block_slots[log2_(f2->size)] == block2);
     ASSERT_TRUE(block2->header == f2);
     ASSERT_TRUE(block2->next == NULL);
 
@@ -170,7 +170,7 @@ TEST_F(AllocTest, FreeAndMergeSimple) {
 
     free_memory_block_t *block5 = block_from_header(f5);
 
-    ASSERT_EQ(g_free_block_slots[log2_(f5->size)], block5);
+    ASSERT_EQ(g_state->free_block_slots[log2_(f5->size)], block5);
     ASSERT_TRUE(block5->next == block2);
     ASSERT_TRUE(block5->header == f5);
 
@@ -191,24 +191,24 @@ TEST_F(AllocTest, FreeAndMergeEverySecond) {
     handle_t h1, h2;
 
     int size = 1024;
-    int count = g_memory_size/(size+sizeof(header_t));
+    int count = g_state->memory_size/(size+sizeof(header_t));
     bool done = false;
-    uint8_t *memtop = (uint8_t *)g_memory_top;
+    uint8_t *memtop = (uint8_t *)g_state->memory_top;
     for (int i=0; i<count/2; i++) {
         h1 = rmmalloc(size);
-        ASSERT_EQ((uint8_t *)g_memory_top, memtop+size);
+        ASSERT_EQ((uint8_t *)g_state->memory_top, memtop+size);
         memtop += size;
 
         h2 = rmmalloc(size);
-        ASSERT_EQ((uint8_t *)g_memory_top, memtop+size);
+        ASSERT_EQ((uint8_t *)g_state->memory_top, memtop+size);
         memtop += size;
 
         rmfree(h2);
     }
 
     int free_blocks = 0;
-    for (int i=0; i<g_free_block_slot_count; i++) {
-        free_memory_block_t *free_block = g_free_block_slots[i];
+    for (int i=0; i<g_state->free_block_slot_count; i++) {
+        free_memory_block_t *free_block = g_state->free_block_slots[i];
         while (free_block != NULL) {
             free_memory_block_t *this_block = block_from_header(free_block->header);
             ASSERT_EQ(this_block, free_block);
@@ -228,21 +228,21 @@ TEST_F(AllocTest, FreeOneMergeTwo) {
     handle_t *free_later;
 
     int size = 1024;
-    int count = g_memory_size/(size+sizeof(header_t));
+    int count = g_state->memory_size/(size+sizeof(header_t));
 
     free_later = (handle_t *)malloc(count/3 * sizeof(handle_t *));
     int later_i=0;
     bool done = false;
-    uint8_t *memtop = (uint8_t *)g_memory_top;
+    uint8_t *memtop = (uint8_t *)g_state->memory_top;
     int allocs = 0;
     for (int i=0; i<count/3; i++) {
         h1 = rmmalloc(size);
-        ASSERT_EQ((uint8_t *)g_memory_top, memtop+size);
+        ASSERT_EQ((uint8_t *)g_state->memory_top, memtop+size);
         memtop += size;
         allocs++;
 
         h2 = rmmalloc(size);
-        ASSERT_EQ((uint8_t *)g_memory_top, memtop+size);
+        ASSERT_EQ((uint8_t *)g_state->memory_top, memtop+size);
         memtop += size;
         allocs++;
 
@@ -259,7 +259,7 @@ TEST_F(AllocTest, FreeOneMergeTwo) {
         void *memlater = hl->memory;
         ASSERT_FALSE(mem2 == memlater);
 
-        ASSERT_EQ((uint8_t *)g_memory_top, memtop+size);
+        ASSERT_EQ((uint8_t *)g_state->memory_top, memtop+size);
         memtop += size;
         allocs++;
 
@@ -267,8 +267,8 @@ TEST_F(AllocTest, FreeOneMergeTwo) {
     }
 
     int free_blocks = 0;
-    for (int i=0; i<g_free_block_slot_count; i++) {
-        free_memory_block_t *free_block = g_free_block_slots[i];
+    for (int i=0; i<g_state->free_block_slot_count; i++) {
+        free_memory_block_t *free_block = g_state->free_block_slots[i];
         while (free_block != NULL) {
             free_memory_block_t *this_block = block_from_header(free_block->header);
             ASSERT_EQ(this_block, free_block);
@@ -289,7 +289,7 @@ TEST_F(AllocTest, FreeOneMergeTwo) {
 
     int free_size = 0;
     int free_blocks_after = 0;
-    free_memory_block_t *free_block = g_free_block_slots[log2_(size)];
+    free_memory_block_t *free_block = g_state->free_block_slots[log2_(size)];
     while (free_block != NULL) {
         free_size += free_block->header->size;
         free_blocks_after++;
@@ -376,7 +376,7 @@ TEST_F(AllocTest, RandomAllormfreeCompact) {
     }
 
 //    freeblock_print();
-    printf("largest block allocated %d kb, total allocated before death = %u (%d kb) in %d allocs, free block hits = %d (allocated %d kb), total heap size %d kb, %d kb free in free list, %ld bytes free above top\n", largest/1024, allocated, allocated/1024, count,g_free_block_hits, g_free_block_alloc/1024, heap_size/1024, rmstat_total_free_list()/1024, ((uint8_t*)g_header_bottom-(uint8_t*)g_memory_top));
+    printf("largest block allocated %d kb, total allocated before death = %u (%d kb) in %d allocs, free block hits = %d (allocated %d kb), total heap size %d kb, %d kb free in free list, %ld bytes free above top\n", largest/1024, allocated, allocated/1024, count,g_state->free_block_hits, g_state->free_block_alloc/1024, heap_size/1024, rmstat_total_free_list()/1024, ((uint8_t*)g_state->header_bottom-(uint8_t*)g_state->memory_top));
 
     //compact();
 }
@@ -421,9 +421,9 @@ TEST_F(AllocTest, RandomAllormfreeFreeHalf) {
         }
 
         // statistics
-        header_t *hh = g_header_top;
+        header_t *hh = g_state->header_top;
         int unused_h = 0, used_h = 0;
-        while (hh != g_header_bottom) {
+        while (hh != g_state->header_bottom) {
             if (hh->memory == NULL) unused_h++;
             else used_h++;
             hh--;
@@ -431,15 +431,15 @@ TEST_F(AllocTest, RandomAllormfreeFreeHalf) {
         //fprintf(stderr, "used headers %d unused headers %d total %d percent %d\n", used_h, unused_h, used_h+unused_h, unused_h*100.0/(used_h+unused_h));
     }
 
-    fprintf(stderr, "largest block allocated %d kb, total allocated before death = %u (%d kb) in %d allocs, free block hits = %d (allocated %d kb), total heap size %d kb, %d kb free in free list, %ld bytes free above top\n", largest/1024, allocated, allocated/1024, count,g_free_block_hits, g_free_block_alloc/1024, heap_size/1024, rmstat_total_free_list()/1024, ((uint8_t*)g_header_bottom-(uint8_t*)g_memory_top));
+    fprintf(stderr, "largest block allocated %d kb, total allocated before death = %u (%d kb) in %d allocs, free block hits = %d (allocated %d kb), total heap size %d kb, %d kb free in free list, %ld bytes free above top\n", largest/1024, allocated, allocated/1024, count,g_state->free_block_hits, g_state->free_block_alloc/1024, heap_size/1024, rmstat_total_free_list()/1024, ((uint8_t*)g_state->header_bottom-(uint8_t*)g_state->memory_top));
     //freeblock_print();
 
     rmcompact(200);
     return;
 
-    header_t *h = g_header_top;
+    header_t *h = g_state->header_top;
     int i=0; 
-    while (h != g_header_bottom) {
+    while (h != g_state->header_bottom) {
         if (h->memory != NULL && h->flags == HEADER_UNLOCKED) {
             if (i++%2 == 0) {
                 //fprintf(stderr, "free %p size %d (slot %d) at location %d\n", block_from_header(h), h->size, log2_(h->size), g_header_top - h);
@@ -450,12 +450,12 @@ TEST_F(AllocTest, RandomAllormfreeFreeHalf) {
         h--;
     }
 
-    fprintf(stderr, "largest block allocated %d kb, total allocated before death = %u (%d kb) in %d allocs, free block hits = %d (allocated %d kb), total heap size %d kb, %d kb free in free list, %ld bytes free above top\n", largest/1024, allocated, allocated/1024, count,g_free_block_hits, g_free_block_alloc/1024, heap_size/1024, rmstat_total_free_list()/1024, ((uint8_t*)g_header_bottom-(uint8_t*)g_memory_top));
+    fprintf(stderr, "largest block allocated %d kb, total allocated before death = %u (%d kb) in %d allocs, free block hits = %d (allocated %d kb), total heap size %d kb, %d kb free in free list, %ld bytes free above top\n", largest/1024, allocated, allocated/1024, count,g_state->free_block_hits, g_state->free_block_alloc/1024, heap_size/1024, rmstat_total_free_list()/1024, ((uint8_t*)g_state->header_bottom-(uint8_t*)g_state->memory_top));
     freeblock_print();
 
     header_sort_all();
 
-    h = g_header_root;
+    h = g_state->header_root;
     while (h != NULL && h->memory != NULL) {
         if (h->next && h->memory != NULL && h->next->memory != NULL)
             ASSERT_TRUE(h->memory > h->next->memory);
@@ -511,7 +511,7 @@ Program received signal SIGABRT, Aborted.
 */
 #endif
 
-    fprintf(stderr, "g_header_bottom = %p\n", g_header_bottom);
+    fprintf(stderr, "g_header_bottom = %p\n", g_state->header_bottom);
 
     ALLOC(228925, true);
     ALLOC(493085, false);
@@ -581,8 +581,8 @@ Program received signal SIGSEGV, Segmentation fault.
 
 
 
-    header_t *f = g_header_top;
-    while (f >= g_header_bottom) {
+    header_t *f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory && f->flags == HEADER_UNLOCKED) {
             uint8_t *foo = (uint8_t *)f->memory;
             char filler = filling[f->size % maxfill];
@@ -639,13 +639,13 @@ TEST_F(SmallAllocTest, WriteCompactData2) {
         ASSERT_FALSE(freeblock_exists_memory(foo));
         for (int i=0; i<f->size; i++) {
             foo[i] = filler;
-            ASSERT_GE(&foo[i], g_memory_bottom);
-            if (&foo[i] == (void *)g_header_bottom) {
+            ASSERT_GE(&foo[i], g_state->memory_bottom);
+            if (&foo[i] == (void *)g_state->header_bottom) {
                 fprintf(stderr, "\n***** at foo[%d] of %d bytes, clash with bottom-most header (%p -> %p size %d.\n", i, size,
-                        g_header_bottom, g_header_bottom->memory, g_header_bottom->size);
+                        g_state->header_bottom, g_state->header_bottom->memory, g_state->header_bottom->size);
                 abort();
             }
-            ASSERT_LT(&foo[i], (void *)g_header_bottom);
+            ASSERT_LT(&foo[i], (void *)g_state->header_bottom);
             //ASSERT_FALSE(freeblock_exists((free_memory_block_t *)(filler<<24 | filler<<16 | filler<<8 | filler)));
             /*
             for (int j=0; j<g_free_block_slot_count; j++)
@@ -676,9 +676,9 @@ TEST_F(SmallAllocTest, WriteCompactData2) {
         fprintf(stderr, "\n");
 
         // statistics
-        header_t *hh = g_header_top;
+        header_t *hh = g_state->header_top;
         int unused_h = 0, used_h = 0;
-        while (hh != g_header_bottom) {
+        while (hh != g_state->header_bottom) {
             if (hh->memory == NULL) unused_h++;
             else used_h++;
             hh--;
@@ -688,8 +688,8 @@ TEST_F(SmallAllocTest, WriteCompactData2) {
 
     //compact();
 
-    header_t *f = g_header_top;
-    while (f >= g_header_bottom) {
+    header_t *f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory && f->flags == HEADER_UNLOCKED) {
             uint8_t *foo = (uint8_t *)f->memory;
             char filler = filling[f->size % maxfill];
@@ -837,9 +837,9 @@ Which is: 297430
         }
 
         // statistics
-        header_t *hh = g_header_top;
+        header_t *hh = g_state->header_top;
         int unused_h = 0, used_h = 0;
-        while (hh != g_header_bottom) {
+        while (hh != g_state->header_bottom) {
             if (hh->memory == NULL) unused_h++;
             else used_h++;
             hh--;
@@ -873,8 +873,8 @@ Which is: 297430
     rmcompact(0);
 
     fprintf(stderr, "Verifying data: ");
-    header_t *f = g_header_top;
-    while (f >= g_header_bottom) {
+    header_t *f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory)
             if (f->flags == HEADER_UNLOCKED || f->flags == HEADER_LOCKED)
                 blocks_after++;
@@ -972,9 +972,9 @@ TEST_F(SmallAllocTest, CompactLock1) {
         }
 
         // statistics
-        header_t *hh = g_header_top;
+        header_t *hh = g_state->header_top;
         int unused_h = 0, used_h = 0;
-        while (hh != g_header_bottom) {
+        while (hh != g_state->header_bottom) {
             if (hh->memory == NULL) unused_h++;
             else used_h++;
             hh--;
@@ -982,8 +982,8 @@ TEST_F(SmallAllocTest, CompactLock1) {
 
         {
         fprintf(stderr, "Verifying data: ");
-        header_t *f = g_header_top;
-        while (f >= g_header_bottom) {
+        header_t *f = g_state->header_top;
+        while (f >= g_state->header_bottom) {
             if (f && f->memory && f->flags == HEADER_UNLOCKED) {
                 uint8_t *foo = (uint8_t *)f->memory;
                 char filler = filling[f->size % maxfill];
@@ -1002,8 +1002,8 @@ TEST_F(SmallAllocTest, CompactLock1) {
     rmcompact(0);
 
     fprintf(stderr, "Verifying data: ");
-    header_t *f = g_header_top;
-    while (f >= g_header_bottom) {
+    header_t *f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory && f->flags == HEADER_UNLOCKED) {
             uint8_t *foo = (uint8_t *)f->memory;
             char filler = filling[f->size % maxfill];
@@ -1070,9 +1070,9 @@ TEST_F(SmallAllocTest, WriteCompactData4) {
         }
 
         // statistics
-        header_t *hh = g_header_top;
+        header_t *hh = g_state->header_top;
         int unused_h = 0, used_h = 0;
-        while (hh != g_header_bottom) {
+        while (hh != g_state->header_bottom) {
             if (hh->memory == NULL) unused_h++;
             else used_h++;
             hh--;
@@ -1083,8 +1083,8 @@ TEST_F(SmallAllocTest, WriteCompactData4) {
     rmcompact(0);
 
     fprintf(stderr, "Verifying data: ");
-    header_t *f = g_header_top;
-    while (f >= g_header_bottom) {
+    header_t *f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory && f->flags == HEADER_UNLOCKED) {
             uint8_t *foo = (uint8_t *)f->memory;
             char filler = filling[f->size % maxfill];
@@ -1139,8 +1139,8 @@ TEST_F(SmallAllocTest, WriteCompactData4Fix) {
     rmcompact(200);
 
     fprintf(stderr, "Verifying data: ");
-    f = g_header_top;
-    while (f >= g_header_bottom) {
+    f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory && f->flags == HEADER_UNLOCKED) {
             foo = (uint8_t *)f->memory;
             char filler = filling[f->size % maxfill];
@@ -1189,8 +1189,8 @@ TEST_F(SmallAllocTest, WriteCompactData5Fix) {
     rmcompact(200);
 
     fprintf(stderr, "Verifying data: ");
-    f = g_header_top;
-    while (f >= g_header_bottom) {
+    f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory && f->flags == HEADER_UNLOCKED) {
             foo = (uint8_t *)f->memory;
             char filler = filling[f->size % maxfill];
@@ -1253,9 +1253,9 @@ TEST_F(AllocTest, WriteCompactData) {
         }
         fprintf(stderr, "\n");
 
-        header_t *f2 = g_header_top;
+        header_t *f2 = g_state->header_top;
         fprintf(stderr, "checking: ");
-        while (f2 >= g_header_bottom) {
+        while (f2 >= g_state->header_bottom) {
             if (f2 && f2->memory && f2->flags == HEADER_UNLOCKED) {
                 fputc('.', stderr);
                 uint8_t *foo2 = (uint8_t *)f2->memory;
@@ -1263,7 +1263,7 @@ TEST_F(AllocTest, WriteCompactData) {
                 for (int i=0; i<f2->size; i++) {
                     if (foo2[i] != filler) 
                         fprintf(stderr, "\nByte at %d: '%c' != '%c', header %p (offset %ld), size %d, block %p\n",
-                                i, foo2[i], filler, f2, g_header_top-f2, f2->size, block_from_header(f2));
+                                i, foo2[i], filler, f2, g_state->header_top-f2, f2->size, block_from_header(f2));
 
                     ASSERT_EQ(foo2[i], filler);
                 }
@@ -1276,15 +1276,15 @@ TEST_F(AllocTest, WriteCompactData) {
 
     rmcompact(200);
 
-    header_t *f = g_header_top;
-    while (f >= g_header_bottom) {
+    header_t *f = g_state->header_top;
+    while (f >= g_state->header_bottom) {
         if (f && f->memory && f->flags == HEADER_UNLOCKED) {
             uint8_t *foo = (uint8_t *)f->memory;
             char filler = filling[f->size % maxfill];
             for (int i=0; i<f->size; i++) {
                     if (foo[i] != filler) 
                         fprintf(stderr, "\nByte at %d: '%c' != '%c', header %p (offset %ld) block %p\n",
-                                i, foo[i], filler, f, g_header_top-f, block_from_header(f));
+                                i, foo[i], filler, f, g_state->header_top-f, block_from_header(f));
                 ASSERT_EQ(foo[i], filler);
             }
         }
