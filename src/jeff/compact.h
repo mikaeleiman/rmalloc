@@ -36,8 +36,8 @@
  * - 
  */
 
-typedef struct header_t header_t;
-typedef header_t* handle_t;
+typedef struct rm_header_t rm_header_t;
+typedef rm_header_t* rm_handle_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,15 +50,17 @@ typedef struct rmalloc_meta_t rmalloc_meta_t;
 void rminit(void *heap, uint32_t size);
 void rmdestroy();
 
-handle_t rmmalloc(int size);
-void rmfree(handle_t);
-void *rmlock(handle_t);
-void *rmweaklock(handle_t);
-void rmunlock(handle_t);
-void rmcompact(uint32_t maxtime);
-
 rmalloc_meta_t* rmalloc_get_state(void);
 void rmalloc_set_state(rmalloc_meta_t *state);
+size_t rmalloc_state_size(void);
+
+rm_handle_t rmmalloc(int size);
+void rmfree(rm_handle_t);
+void *rmlock(rm_handle_t);
+void *rmweaklock(rm_handle_t);
+void rmunlock(rm_handle_t);
+void rmcompact(uint32_t maxtime);
+
 
 /* internal */
 

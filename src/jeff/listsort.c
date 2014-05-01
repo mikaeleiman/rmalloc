@@ -46,8 +46,8 @@
 
 ptr_t header__cmp(void *a, void *b) {
 
-    header_t *x = (header_t *)a;
-    header_t *y = (header_t *)b;
+    rm_header_t *x = (rm_header_t *)a;
+    rm_header_t *y = (rm_header_t *)b;
 
 #if 0 // TODO: FUTURE WORK
     // Does not work, don't know why.
@@ -78,8 +78,8 @@ ptr_t header__cmp(void *a, void *b) {
 }
 
 //element *listsort(element *list, int is_circular, int is_double) {
-header_t *header__sort(header_t *list, int is_circular, int is_double, compare_cb cmp) {
-    header_t *p, *q, *e, *tail, *oldhead;
+rm_header_t *header__sort(rm_header_t *list, int is_circular, int is_double, compare_cb cmp) {
+    rm_header_t *p, *q, *e, *tail, *oldhead;
     int insize, nmerges, psize, qsize, i;
 
     (void)is_double;
@@ -190,8 +190,8 @@ header_t *header__sort(header_t *list, int is_circular, int is_double, compare_c
  *     list = listsort(mylist);
  */
 #if 0
-header_t *header__sort(header_t *list, /* int is_circular, int is_double, */ compare_cb cmp) {
-    header_t *p, *q, *e, *tail, *oldhead;
+rm_header_t *header__sort(rm_header_t *list, /* int is_circular, int is_double, */ compare_cb cmp) {
+    rm_header_t *p, *q, *e, *tail, *oldhead;
     int insize, nmerges, psize, qsize, i;
 
     /*

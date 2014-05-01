@@ -26,14 +26,14 @@ typedef uint32_t ptr_t;
 #define HEADER_WEAK_LOCKED  (1<<2)
 
 #pragma pack(1)
-struct header_t {
+struct rm_header_t {
     void *memory;
     uint32_t size;
     uint8_t flags;
 
-    struct header_t *next;
+    struct rm_header_t *next;
 #if JEFF_MAX_RAM_VS_SLOWER_MALLOC == 0
-    struct header_t *next_unused;
+    struct rm_header_t *next_unused;
 #endif
 };
 #pragma pack()
@@ -41,7 +41,7 @@ struct header_t {
 /* free memory block, see compact.h
  */
 typedef struct free_memory_block_t {
-    header_t *header;
+    rm_header_t *header;
     struct free_memory_block_t *next; // null if no next block.
 } free_memory_block_t;
 
@@ -66,15 +66,15 @@ struct rmalloc_meta_t {
 
     /* header */
     // headers grow down in memory
-    header_t *header_top;
-    header_t *header_bottom;
-    header_t *header_root; // linked list
+    rm_header_t *header_top;
+    rm_header_t *header_bottom;
+    rm_header_t *header_root; // linked list
     int header_used_count; // for spare headers in compact
-    header_t *last_free_header;
+    rm_header_t *last_free_header;
 
-    header_t *unused_header_root;
+    rm_header_t *unused_header_root;
 
-    header_t *highest_address_header;
+    rm_header_t *highest_address_header;
 
     #ifdef RMALLOC_DEBUG
     uint32_t g_memlayout_sequence = 0;
@@ -86,10 +86,10 @@ struct rmalloc_meta_t {
 typedef ptr_t (*compare_cb)(void *a, void *b);
 
 uint32_t log2_(uint32_t n);
-header_t *header_find_free(void);
-free_memory_block_t *block_from_header(header_t *header);
+rm_header_t *header_find_free(void);
+free_memory_block_t *block_from_header(rm_header_t *header);
 void header_sort_all();
-bool header_is_unused(header_t *header);
+bool header_is_unused(rm_header_t *header);
 //static void freeblock_print();
 bool freeblock_exists_memory(void *ptr);
 
