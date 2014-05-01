@@ -48,7 +48,7 @@ extern "C" {
 typedef struct rmalloc_meta_t rmalloc_meta_t;
 
 void rm_init(void *heap, uint32_t size);
-void rm_destroy();
+void rm_destroy(void);
 
 rmalloc_meta_t* rm_get_state(void);
 void rm_set_state(rmalloc_meta_t *state);

@@ -54,10 +54,10 @@ protected:
 };
 
 TEST_F(AllocTest, Init) {
-    ASSERT_EQ(g_state->memory_bottom, (void *)((ptr_t)storage + g_state->free_block_slot_count*sizeof(free_memory_block_t *)));
+    ASSERT_EQ(g_state->memory_bottom, (void *)((uintptr_t)storage + g_state->free_block_slot_count*sizeof(free_memory_block_t *)));
     ASSERT_EQ(g_state->memory_top, g_state->memory_bottom);
-    ASSERT_EQ((void *)g_state->header_top, (void *)((ptr_t)g_state->free_block_slots+heap_size));
-    ASSERT_EQ((ptr_t)g_state->free_block_slots, (ptr_t)g_state->memory_bottom - g_state->free_block_slot_count*sizeof(free_memory_block_t *));
+    ASSERT_EQ((void *)g_state->header_top, (void *)((uintptr_t)g_state->free_block_slots+heap_size));
+    ASSERT_EQ((uintptr_t)g_state->free_block_slots, (uintptr_t)g_state->memory_bottom - g_state->free_block_slot_count*sizeof(free_memory_block_t *));
     ASSERT_EQ(g_state->free_block_slot_count, rm_log2(heap_size)+1); // to accomodate 2^(k+1) sized blocks
 
     ASSERT_LT((void *)g_state->free_block_slots, g_state->memory_bottom);

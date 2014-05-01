@@ -11,8 +11,8 @@
 #define WITH_ITER(h, init, body...) {header_t *h = init; while (h != NULL) {body; h = h->next;}}
 
 // These are from listsort.c
-rm_header_t *header__sort(rm_header_t *list,  int is_circular, int is_double, compare_cb cmp);
-ptr_t header__cmp(void *a, void *b);
+rm_header_t *rm_header__sort(rm_header_t *list,  bool is_circular, bool is_double, compare_cb cmp);
+uintptr_t rm_header__cmp(void *a, void *b);
 
 
 #ifdef __MACH__
@@ -103,7 +103,6 @@ uint32_t rm_log2(uint32_t n)
     //return __builtin_ctz(n);
     return sizeof(n)*8 - 1 - __builtin_clz(n); // builtin_clz() is base 0
 }
-
 
 
 #ifdef RMALLOC_DEBUG
@@ -431,7 +430,7 @@ uint32_t rm_stat_largest_free_block() {
 
 void *rm_stat_highest_used_address(bool full_calculation) {
     if (full_calculation) {
-        ptr_t highest = 0;
+        uintptr_t highest = 0;
 
         rm_header_t *h = g_state->header_root;
 
@@ -439,8 +438,8 @@ void *rm_stat_highest_used_address(bool full_calculation) {
         while (h != NULL) {
             if (h->type != BLOCK_TYPE_FREE) {
                 //printf("*%p ", h->memory);
-                if (h->size + (ptr_t)h->memory > highest) {
-                    highest = h->size + (ptr_t)h->memory;
+                if (h->size + (uintptr_t)h->memory > highest) {
+                    highest = h->size + (uintptr_t)h->memory;
                 }
             } else {
                 //printf("%p ", h->memory);
@@ -451,7 +450,7 @@ void *rm_stat_highest_used_address(bool full_calculation) {
 
         return (void*)highest;
     } else {
-        return (void *)((ptr_t)g_state->highest_address_header->memory + g_state->highest_address_header->size);
+        return (void *)((uintptr_t)g_state->highest_address_header->memory + g_state->highest_address_header->size);
     }
 }
 
@@ -487,13 +486,14 @@ uint32_t rmstat_get_used_block_count(void) {
     return fc + lc + uc + wc;
 }
 
-void rmstat_get_used_blocks(ptr_t *blocks) {
+void rmstat_get_used_blocks(uintptr_t *blocks) {
     uint32_t i=0;
     uint32_t count = rmstat_get_used_block_count();
     rm_header_t *h = g_state->header_root;
     while (h != NULL) {
-        if (h->type != BLOCK_TYPE_FREE) 
-            blocks[i++] = (ptr_t)h->memory;
+        if (h->type != BLOCK_TYPE_FREE) {
+            blocks[i++] = (uintptr_t)h->memory;
+        }
 
         if (i == count)
             break;
@@ -721,7 +721,7 @@ static void update_highest_address_if_needed(rm_header_t *h) {
 }
 
 static rm_header_t *freeblock_find(uint32_t size);
-static rm_header_t *block_new(ptr_t size) {
+static rm_header_t *block_new(uintptr_t size) {
 #ifdef RMALLOC_DEBUG
     fprintf(stderr, "block new: %d\n", size);
 #endif
@@ -761,7 +761,7 @@ static rm_header_t *block_new(ptr_t size) {
         h->memory = g_state->memory_top;
         h->type = BLOCK_TYPE_UNLOCKED;
 
-        if ((ptr_t)h->memory < (ptr_t)g_state->memory_bottom)
+        if ((uintptr_t)h->memory < (uintptr_t)g_state->memory_bottom)
             abort();
 
         g_state->header_used_count++;
@@ -777,7 +777,7 @@ static rm_header_t *block_new(ptr_t size) {
 #endif
             return NULL;
         }
-        if ((ptr_t)h->memory <= (ptr_t)g_state->memory_bottom)
+        if ((uintptr_t)h->memory <= (uintptr_t)g_state->memory_bottom)
             abort();
 
         g_state->header_used_count++;
@@ -932,7 +932,7 @@ static rm_header_t *block_free(rm_header_t *header) {
     block->next = NULL;
 #endif
 
-    if (block->header->size + (ptr_t)block->header->memory >= (ptr_t)g_state->header_bottom)
+    if (block->header->size + (uintptr_t)block->header->memory >= (uintptr_t)g_state->header_bottom)
 #ifdef RMALLOC_DEBUG
         abort();
 #else
@@ -1004,7 +1004,7 @@ static rm_header_t *block_free(rm_header_t *header) {
  */
 static void freeblock_insert(free_memory_block_t *block) {
 
-    if (block->header->size + (ptr_t)block->header->memory >= (ptr_t)g_state->header_bottom) {
+    if (block->header->size + (uintptr_t)block->header->memory >= (uintptr_t)g_state->header_bottom) {
         abort();
     }
 
@@ -1133,7 +1133,7 @@ static rm_header_t *freeblock_find(uint32_t size) {
 
     // any blocks of >= upper_size will be moved be de-linked and moved to the
     // appropriate slot
-    ptr_t upper_size = 1<<(k+1);
+    uintptr_t upper_size = 1<<(k+1);
 
     free_memory_block_t *block = NULL;
     free_memory_block_t *found_block = NULL;
@@ -1346,7 +1346,7 @@ void rm_header_sort_all() {
 #endif
     //g_header_root = header__sort(g_header_root, header__cmp);
     //header_t *header__sort(header_t *list, int is_circular, int is_double, compare_cb cmp) {
-    g_state->header_root = header__sort(g_state->header_root, 0, 0, header__cmp);
+    g_state->header_root = rm_header__sort(g_state->header_root, 0, 0, rm_header__cmp);
 }
 
 
@@ -1487,8 +1487,8 @@ static uint32_t /*size*/ get_unlocked_header_range(rm_header_t *start, rm_header
 
 static uint32_t /*size*/ header_memory_offset(rm_header_t *first, rm_header_t *last)
 {
-    ptr_t f = (ptr_t)first->memory;
-    ptr_t l = (ptr_t)last->memory;
+    uintptr_t f = (uintptr_t)first->memory;
+    uintptr_t l = (uintptr_t)last->memory;
 
     if (f > l)
         return 0;
@@ -1584,12 +1584,12 @@ void rm_init(void *heap, uint32_t size) {
     uint32_t count = sizeof(free_memory_block_t *)*g_state->free_block_slot_count;
     memset((void *)g_state->free_block_slots, 0, count);
 
-    g_state->memory_bottom = (void *)((ptr_t)heap + (g_state->free_block_slot_count * sizeof(free_memory_block_t *)));
+    g_state->memory_bottom = (void *)((uintptr_t)heap + (g_state->free_block_slot_count * sizeof(free_memory_block_t *)));
     g_state->memory_top = g_state->memory_bottom;
 
     // header top is located at the top of the heap space and grows downward.
     // header bottom points to the bottom, including the last one!
-    g_state->header_top = (rm_header_t *)((ptr_t)heap + size - sizeof(rm_header_t));
+    g_state->header_top = (rm_header_t *)((uintptr_t)heap + size - sizeof(rm_header_t));
     g_state->header_bottom = g_state->header_top - 1;
     g_state->header_root = g_state->header_top;
     g_state->header_root->next = NULL;
@@ -1797,11 +1797,11 @@ void rm_compact(uint32_t maxtime) {
 
         rm_header_t *h = unlocked_first;
         unlocked_size = 0;
-        ptr_t unlocked_first_memory = (ptr_t)unlocked_first->memory;
+        uintptr_t unlocked_first_memory = (uintptr_t)unlocked_first->memory;
         while (h != NULL && h != unlocked_last->next)
         {
-            ptr_t src = (ptr_t)h->memory;
-            ptr_t dest = src - used_offset;
+            uintptr_t src = (uintptr_t)h->memory;
+            uintptr_t dest = src - used_offset;
             h->memory = (void *)dest;
             unlocked_size += h->size;
 
@@ -1812,7 +1812,7 @@ void rm_compact(uint32_t maxtime) {
 
         // Squish free blocks
 
-        ptr_t free_memory_start = (ptr_t)free_first->memory;
+        uintptr_t free_memory_start = (uintptr_t)free_first->memory;
 
         h = free_first;
         while (h && h != free_first->next)
@@ -1893,7 +1893,7 @@ void rm_compact(uint32_t maxtime) {
             //memset(free_unlocked->memory, 0x43, free_unlocked->size); // TODO: Can be safely removed.
             #endif
 
-            if ((ptr_t)free_unlocked->memory <= (ptr_t)g_state->memory_bottom)
+            if ((uintptr_t)free_unlocked->memory <= (uintptr_t)g_state->memory_bottom)
                 abort();
 
             // Link B to F6
@@ -1910,13 +1910,13 @@ void rm_compact(uint32_t maxtime) {
                 // Create F5
                 rm_header_t *spare_free = header_new(/*insert_in_list*/false);
                 spare_free->type = BLOCK_TYPE_FREE;
-                spare_free->memory = (void *)((ptr_t)unlocked_first->memory + unlocked_size);
+                spare_free->memory = (void *)((uintptr_t)unlocked_first->memory + unlocked_size);
                 spare_free->size = free_size - unlocked_size;
                 #ifdef RMALLOC_DEBUG
                 //memset(spare_free->memory, 0x44, spare_free->size); // TODO: Can be safely removed.
                 #endif
 
-                if ((ptr_t)spare_free->memory <= (ptr_t)g_state->memory_bottom)
+                if ((uintptr_t)spare_free->memory <= (uintptr_t)g_state->memory_bottom)
                     abort();
 
                 // Link LU to F5
@@ -2009,7 +2009,7 @@ void rm_compact(uint32_t maxtime) {
 #endif
 
     // TODO: integrate into main loop.
-    ptr_t highest_used_address = (ptr_t)g_state->memory_bottom;
+    uintptr_t highest_used_address = (uintptr_t)g_state->memory_bottom;
 #ifdef RMALLOC_DEBUG
     fprintf(stderr, "Previous top: 0x%X (bottom 0x%X)\n", g_memory_top, g_memory_bottom);
 #endif
@@ -2019,8 +2019,8 @@ void rm_compact(uint32_t maxtime) {
     int total_size = 0;
     while (h != NULL) {
         if (!rm_header_is_unused(h) && h->type != BLOCK_TYPE_FREE) {
-            if ((ptr_t)h->memory + h->size > highest_used_address) {
-                highest_used_address = (ptr_t)h->memory + h->size;
+            if ((uintptr_t)h->memory + h->size > highest_used_address) {
+                highest_used_address = (uintptr_t)h->memory + h->size;
                 //ptr_t offset = highest_used_address - (ptr_t)g_memory_bottom;
                 //fprintf(stderr, "=> USED 0x%X size %04d offset from bottom: %d bytes (%d kb)\n", h->memory, h->size, offset, offset/1024);
                 largest_header = h;
@@ -2038,7 +2038,7 @@ void rm_compact(uint32_t maxtime) {
     while (h != NULL) {
         rm_header_t *h2 = h;
         bool kill = false;
-        if (!rm_header_is_unused(h) && h->type == BLOCK_TYPE_FREE && (ptr_t)h->memory >= highest_used_address) {
+        if (!rm_header_is_unused(h) && h->type == BLOCK_TYPE_FREE && (uintptr_t)h->memory >= highest_used_address) {
             header_set_unused(h);
             kill = true;
         }

@@ -17,13 +17,6 @@ extern "C" {
 #define JEFF_MAX_RAM_VS_SLOWER_MALLOC 0
 #endif
 
-#if __x86_64__
-typedef uint64_t ptr_t;
-#define PTR_T_MAX UINT64_MAX
-#else
-typedef uint32_t ptr_t;
-#define PTR_T_MAX UINT32_MAX
-#endif
 
 typedef enum {
     BLOCK_TYPE_FREE         = 0,
@@ -87,7 +80,7 @@ struct rmalloc_meta_t {
 };
 
 //uint32_t log2_(uint32_t n);
-typedef ptr_t (*compare_cb)(void *a, void *b);
+typedef uintptr_t (*compare_cb)(void *a, void *b);
 
 // TODO these should be static, except the tests want them
 uint32_t rm_log2(uint32_t n);
