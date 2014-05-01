@@ -47,28 +47,21 @@ extern "C" {
 
 typedef struct rmalloc_meta_t rmalloc_meta_t;
 
-void rminit(void *heap, uint32_t size);
-void rmdestroy();
+void rm_init(void *heap, uint32_t size);
+void rm_destroy();
 
-rmalloc_meta_t* rmalloc_get_state(void);
-void rmalloc_set_state(rmalloc_meta_t *state);
-size_t rmalloc_state_size(void);
+rmalloc_meta_t* rm_get_state(void);
+void rm_set_state(rmalloc_meta_t *state);
+size_t rm_state_size(void);
 
-rm_handle_t rmmalloc(int size);
-void rmfree(rm_handle_t);
-void *rmlock(rm_handle_t);
-void *rmweaklock(rm_handle_t);
-void rmunlock(rm_handle_t);
-void rmcompact(uint32_t maxtime);
+rm_handle_t rm_malloc(int size);
+void rm_free(rm_handle_t);
+void *rm_lock(rm_handle_t);
+void *rm_weaklock(rm_handle_t);
+void rm_unlock(rm_handle_t);
+void rm_compact(uint32_t maxtime);
 
 
-/* internal */
-
-uint32_t rmstat_total_free_list();
-uint32_t rmstat_largest_free_block();
-void *rmstat_highest_used_address(bool full_calculation);
-void rmstat_print_headers(bool only_type); // only print the type, no headers
-void rmstat_set_debugging(bool enable);
 
 #ifdef __cplusplus
 };

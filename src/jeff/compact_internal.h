@@ -8,6 +8,11 @@
 /* header, see compact.h
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+
 #ifndef JEFF_MAX_RAM_VS_SLOWER_MALLOC
 #define JEFF_MAX_RAM_VS_SLOWER_MALLOC 0
 #endif
@@ -20,16 +25,19 @@ typedef uint32_t ptr_t;
 #define PTR_T_MAX UINT32_MAX
 #endif
 
-#define HEADER_FREE_BLOCK   0
-#define HEADER_UNLOCKED     (1<<0)
-#define HEADER_LOCKED       (1<<1)
-#define HEADER_WEAK_LOCKED  (1<<2)
+typedef enum {
+    BLOCK_TYPE_FREE         = 0,
+    BLOCK_TYPE_UNLOCKED     = 1,
+    BLOCK_TYPE_LOCKED       = 2,
+    BLOCK_TYPE_WEAK_LOCKED  = 3,
+} rm_block_type_t;
+
 
 #pragma pack(1)
 struct rm_header_t {
     void *memory;
-    uint32_t size;
-    uint8_t flags;
+    uint32_t size; // TODO why not size_t?
+    uint8_t type;
 
     struct rm_header_t *next;
 #if JEFF_MAX_RAM_VS_SLOWER_MALLOC == 0
@@ -45,16 +53,12 @@ typedef struct free_memory_block_t {
     struct free_memory_block_t *next; // null if no next block.
 } free_memory_block_t;
 
-#ifdef __cplusplus
-extern "C" {
-#endif // __cplusplus
-
 struct rmalloc_meta_t {
     /* memory layout
      */
     void *memory_bottom;
     void *memory_top;
-    uint32_t memory_size;
+    uint32_t memory_size; // TODO why not size_t?
 
     /* linked list at each position
      * each stores 2^k - 2^(k+1) sized blocks
@@ -69,7 +73,7 @@ struct rmalloc_meta_t {
     rm_header_t *header_top;
     rm_header_t *header_bottom;
     rm_header_t *header_root; // linked list
-    int header_used_count; // for spare headers in compact
+    int header_used_count; // for spare headers in compact TODO why not unsigned?
     rm_header_t *last_free_header;
 
     rm_header_t *unused_header_root;
@@ -85,13 +89,22 @@ struct rmalloc_meta_t {
 //uint32_t log2_(uint32_t n);
 typedef ptr_t (*compare_cb)(void *a, void *b);
 
-uint32_t log2_(uint32_t n);
-rm_header_t *header_find_free(void);
-free_memory_block_t *block_from_header(rm_header_t *header);
-void header_sort_all();
-bool header_is_unused(rm_header_t *header);
+// TODO these should be static, except the tests want them
+uint32_t rm_log2(uint32_t n);
+rm_header_t *rm_header_find_free(void);
+free_memory_block_t *rm_block_from_header(rm_header_t *header);
+void rm_header_sort_all();
+bool rm_header_is_unused(rm_header_t *header);
 //static void freeblock_print();
-bool freeblock_exists_memory(void *ptr);
+bool rm_freeblock_exists_memory(void *ptr);
+
+// stats and debug
+
+uint32_t rm_stat_total_free_list();
+uint32_t rm_stat_largest_free_block();
+void *rm_stat_highest_used_address(bool full_calculation);
+void rm_stat_print_headers(bool only_type); // only print the type, no headers
+void rm_stat_set_debugging(bool enable);
 
 
 
