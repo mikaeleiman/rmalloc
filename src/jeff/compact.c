@@ -10,7 +10,7 @@
 #define WITH_ITER(h, init, body...) {header_t *h = init; while (h != NULL) {body; h = h->next;}}
 
 // These are from listsort.c
-rm_header_t *rm_header__sort(rm_header_t *list,  bool is_circular, bool is_double, compare_cb cmp);
+rm_header_t *rm_header__sort(rm_header_t *list,  bool is_circular, bool is_double, rm_compare_cb cmp);
 uintptr_t rm_header__cmp(void *a, void *b);
 
 

@@ -77,7 +77,7 @@ uintptr_t rm_header__cmp(void *a, void *b) {
 
 
 //element *listsort(element *list, int is_circular, int is_double) {
-rm_header_t *rm_header__sort(rm_header_t *list, bool is_circular, bool is_double, compare_cb cmp) {
+rm_header_t *rm_header__sort(rm_header_t *list, bool is_circular, bool is_double, rm_compare_cb cmp) {
     rm_header_t *p, *q, *e, *tail, *oldhead;
     int insize, nmerges, psize, qsize, i;
 

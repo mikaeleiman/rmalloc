@@ -29,7 +29,7 @@ typedef enum {
 #pragma pack(1)
 struct rm_header_t {
     void *memory;
-    uint32_t size; // TODO why not size_t?
+    uint32_t size;
     uint8_t type;
 
     struct rm_header_t *next;
@@ -51,7 +51,7 @@ struct rmalloc_meta_t {
      */
     void *memory_bottom;
     void *memory_top;
-    uint32_t memory_size; // TODO why not size_t?
+    size_t memory_size; // TODO why not size_t?
 
     /* linked list at each position
      * each stores 2^k - 2^(k+1) sized blocks
@@ -79,8 +79,7 @@ struct rmalloc_meta_t {
     #endif
 };
 
-//uint32_t log2_(uint32_t n);
-typedef uintptr_t (*compare_cb)(void *a, void *b);
+typedef uintptr_t (*rm_compare_cb)(void *a, void *b);
 
 // TODO these should be static, except the tests want them
 uint32_t rm_log2(uint32_t n);
@@ -88,7 +87,6 @@ rm_header_t *rm_header_find_free(void);
 free_memory_block_t *rm_block_from_header(rm_header_t *header);
 void rm_header_sort_all();
 bool rm_header_is_unused(rm_header_t *header);
-//static void freeblock_print();
 bool rm_freeblock_exists_memory(void *ptr);
 
 // stats and debug
